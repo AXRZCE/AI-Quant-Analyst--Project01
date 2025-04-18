@@ -12,6 +12,7 @@ sys.path.append(str(project_root))
 
 # Import project modules
 from src.ingest.polygon_client import PolygonClient
+from src.ingest.yahoo_client import YahooFinanceClient
 from src.ingest.news_client import fetch_news
 from .models import PredictionResponse
 
@@ -56,14 +57,24 @@ def run_prediction(symbol: str, days: int) -> PredictionResponse:
     now = datetime.now(timezone.utc)
 
     try:
-        # 1. Fetch historical ticks
-        client = PolygonClient()
+        # 1. Fetch historical ticks from Polygon.io
         start_date = now - timedelta(days=days)
-        df = client.fetch_ticks(symbol, start_date, now)
+        polygon_client = PolygonClient()
+        df = polygon_client.fetch_ticks(symbol, start_date, now)
 
-        # If no data, generate dummy data
+        # If Polygon.io fails, try Yahoo Finance as fallback
         if df.empty:
-            logger.warning(f"No data returned for {symbol}, generating dummy data")
+            logger.info(f"No data from Polygon.io for {symbol}, trying Yahoo Finance")
+            yahoo_client = YahooFinanceClient()
+            df = yahoo_client.fetch_ticks(symbol, start_date, now)
+
+            # Set timestamp as index to match Polygon format
+            if not df.empty and 'timestamp' in df.columns:
+                df = df.set_index('timestamp')
+
+        # If both APIs fail, generate dummy data
+        if df.empty:
+            logger.warning(f"No data from any source for {symbol}, generating dummy data")
             dates = pd.date_range(start=start_date, end=now, freq='1H')
             df = pd.DataFrame({
                 'timestamp': dates,

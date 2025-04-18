@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project01 Quant Analyst</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-blue-600 text-white p-6 shadow-md">
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold">Project01 Quant Analyst</h1>
+            <p class="mt-2 text-blue-100">AI-driven stock market analysis and prediction</p>
+        </div>
+    </header>
+
+    <main class="container mx-auto py-8 px-4">
+        <div id="api-status" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+            <p class="font-bold">API Unavailable</p>
+            <p>The backend API is currently unavailable. Please check your connection or try again later.</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Enter Stock Symbol</h2>
+            <form id="prediction-form" class="flex flex-col md:flex-row gap-4 mb-6">
+                <div class="flex flex-col">
+                    <label for="symbol" class="text-sm font-medium text-gray-700 mb-1">Stock Symbol</label>
+                    <input id="symbol" class="border border-gray-300 p-2 rounded-md focus:ring-blue-500 focus:border-blue-500" 
+                           value="AAPL" placeholder="AAPL" required>
+                </div>
+
+                <div class="flex flex-col">
+                    <label for="days" class="text-sm font-medium text-gray-700 mb-1">Days of History</label>
+                    <input id="days" type="number" min="1" max="30" class="border border-gray-300 p-2 rounded-md w-24 focus:ring-blue-500 focus:border-blue-500" 
+                           value="7" required>
+                </div>
+
+                <div class="flex items-end">
+                    <button type="submit" id="predict-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors duration-200">
+                        Predict
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="error-container" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8" role="alert">
+            <p class="font-bold">Error</p>
+            <p id="error-message"></p>
+        </div>
+
+        <div id="loading" class="hidden flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+
+        <div id="results" class="hidden space-y-8">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-lg font-semibold mb-4">Price Chart</h3>
+                <canvas id="price-chart" height="300"></canvas>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-semibold mb-4">Sentiment Analysis</h3>
+                    <div class="flex justify-center">
+                        <div class="w-64 h-64 relative">
+                            <canvas id="sentiment-chart"></canvas>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <div id="sentiment-label" class="text-lg font-bold"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-lg font-semibold mb-4">Price Prediction</h3>
+                    <div class="flex flex-col items-center justify-center h-full">
+                        <div class="text-5xl font-bold text-blue-600" id="prediction-value">$0.00</div>
+                        <div class="text-gray-500 mt-2">Predicted Price</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-6 mt-12">
+        <div class="container mx-auto">
+            <p class="text-center">© 2025 Project01 Quant Analyst</p>
+        </div>
+    </footer>
+
+    <script>
+        const API_URL = 'http://localhost:8000/api';
+        let priceChart = null;
+        let sentimentChart = null;
+
+        // Check API health on load
+        async function checkApiHealth() {
+            try {
+                const response = await axios.get(`${API_URL}/health`);
+                return response.data.status === 'ok';
+            } catch (error) {
+                console.error('Health check failed:', error);
+                return false;
+            }
+        }
+
+        // Initialize the app
+        async function init() {
+            const isHealthy = await checkApiHealth();
+            document.getElementById('api-status').classList.toggle('hidden', isHealthy);
+            
+            document.getElementById('prediction-form').addEventListener('submit', handleSubmit);
+        }
+
+        // Handle form submission
+        async function handleSubmit(e) {
+            e.preventDefault();
+            
+            const symbol = document.getElementById('symbol').value.toUpperCase();
+            const days = parseInt(document.getElementById('days').value);
+            
+            // Show loading, hide results and error
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('error-container').classList.add('hidden');
+            
+            try {
+                const response = await axios.post(`${API_URL}/predict`, { symbol, days });
+                displayResults(response.data);
+            } catch (error) {
+                console.error('Error fetching prediction:', error);
+                document.getElementById('error-message').textContent = 'Failed to fetch prediction. Please try again.';
+                document.getElementById('error-container').classList.remove('hidden');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        // Display the results
+        function displayResults(data) {
+            // Show results container
+            document.getElementById('results').classList.remove('hidden');
+            
+            // Update price chart
+            createPriceChart(data);
+            
+            // Update sentiment gauge
+            createSentimentChart(data.sentiment);
+            
+            // Update prediction display
+            document.getElementById('prediction-value').textContent = `$${data.prediction.toFixed(2)}`;
+        }
+
+        // Create price chart
+        function createPriceChart(data) {
+            const ctx = document.getElementById('price-chart').getContext('2d');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+            
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.timestamps,
+                    datasets: [
+                        {
+                            label: 'Price',
+                            data: data.prices,
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.1,
+                            fill: true
+                        },
+                        {
+                            label: 'MA-5',
+                            data: data.ma_5,
+                            borderColor: 'rgb(220, 38, 38)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Create sentiment chart
+        function createSentimentChart(sentiment) {
+            const ctx = document.getElementById('sentiment-chart').getContext('2d');
+            
+            if (sentimentChart) {
+                sentimentChart.destroy();
+            }
+            
+            sentimentChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Positive', 'Neutral', 'Negative'],
+                    datasets: [{
+                        data: [sentiment.positive, sentiment.neutral, sentiment.negative],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.7)',  // Green
+                            'rgba(59, 130, 246, 0.7)',  // Blue
+                            'rgba(239, 68, 68, 0.7)'    // Red
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+            
+            // Determine overall sentiment
+            const maxSentiment = Math.max(sentiment.positive, sentiment.neutral, sentiment.negative);
+            let sentimentLabel = '';
+            
+            if (maxSentiment === sentiment.positive) {
+                sentimentLabel = 'Positive';
+            } else if (maxSentiment === sentiment.neutral) {
+                sentimentLabel = 'Neutral';
+            } else {
+                sentimentLabel = 'Negative';
+            }
+            
+            document.getElementById('sentiment-label').textContent = sentimentLabel;
+        }
+
+        // Initialize the app
+        init();
+    </script>
+</body>
+</html>

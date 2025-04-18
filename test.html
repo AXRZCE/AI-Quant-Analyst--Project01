@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button id="healthBtn">Test Health</button>
+    <button id="predictBtn">Test Predict</button>
+    <div id="result"></div>
+
+    <script>
+        const api = axios.create({
+            baseURL: 'http://localhost:8000/api',
+        });
+
+        document.getElementById('healthBtn').addEventListener('click', async () => {
+            try {
+                const response = await api.get('/health');
+                document.getElementById('result').innerHTML = `Health: ${JSON.stringify(response.data)}`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+            }
+        });
+
+        document.getElementById('predictBtn').addEventListener('click', async () => {
+            try {
+                const response = await api.post('/predict', { symbol: 'AAPL', days: 30 });
+                document.getElementById('result').innerHTML = `Prediction: ${JSON.stringify(response.data)}`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
