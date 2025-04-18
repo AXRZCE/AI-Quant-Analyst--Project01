@@ -59,3 +59,5 @@ numba==0.58.1
 
 # Reinforcement learning
 gym==0.26.3
+ray[rllib]==2.9.0
+tensorboard==2.15.1
