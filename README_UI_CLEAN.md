@@ -6,24 +6,26 @@ This folder contains the React + FastAPI UI for your private AI Quant Analyst.
 
 - Docker & Docker Compose installed
 - A `.env` file in the project root with:
-  ```bash
-  POLYGON_API_KEY=your_polygon_key
-  NEWS_API_KEY=your_newsapi_key
-  TWITTER_BEARER_TOKEN=your_twitter_token
-  ```
+
+```
+POLYGON_API_KEY=your_polygon_key
+NEWS_API_KEY=your_newsapi_key
+TWITTER_BEARER_TOKEN=your_twitter_token
+```
+
 - (Optional) Adjust ports or VITE_API_URL in `infra/docker-compose.yml`
 
 ## Running Locally
 
 ### Windows
 
-```bat
+```
 run_ui.bat
 ```
 
 ### Linux / macOS
 
-```bash
+```
 ./run_ui.sh
 ```
 
