@@ -21,7 +21,7 @@ delta-spark==2.4.0
 pyarrow==14.0.1
 
 # Feature store
-feast==0.30.0
+feast==0.29.0
 
 # Kafka
 kafka-python==2.0.2
@@ -56,6 +56,9 @@ jaxlib==0.4.20
 arviz==0.17.0
 pymc3==3.11.5
 numba==0.58.1
+
+# Monitoring and drift detection
+evidently==0.4.9
 
 # Reinforcement learning
 gym==0.26.3

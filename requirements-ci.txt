@@ -18,3 +18,4 @@ bentoml>=1.0.0
 
 # Monitoring
 prometheus-client>=0.10.0
+evidently>=0.4.0

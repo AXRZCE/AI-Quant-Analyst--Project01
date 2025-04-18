@@ -2,9 +2,9 @@ name: Lint and Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -36,8 +36,16 @@ jobs:
       - name: Lint code
         run: |
           # Run flake8 with relaxed settings
+          echo "Running flake8 with relaxed settings..."
           flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          echo "Flake8 completed successfully."
 
       - name: Run tests
         run: |
-          pytest tests/ -v
+          echo "Running tests..."
+          # Run tests with more detailed output and continue on error
+          python -m pytest tests/ -v --tb=native || {
+            echo "Some tests failed. Check the output above for details."
+            exit 1
+          }
+          echo "All tests passed successfully."
