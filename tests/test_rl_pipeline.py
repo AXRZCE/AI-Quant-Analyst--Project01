@@ -7,6 +7,7 @@ import pytest
 import subprocess
 import pandas as pd
 import numpy as np
+import gymnasium as gym
 from typing import Dict, Any, List, Optional
 
 # Add src directory to path
@@ -23,10 +24,10 @@ def test_rl_env_creation():
     data_path = "data/features/batch/technical_with_timeidx.parquet"
     if not os.path.exists(data_path):
         pytest.skip(f"Data file not found: {data_path}")
-    
+
     # Load data
     df = pd.read_parquet(data_path)
-    
+
     # Create environment
     feature_cols = ["ma_5", "rsi_14", "close"]
     env = TradingEnv(
@@ -35,22 +36,24 @@ def test_rl_env_creation():
         initial_capital=100_000,
         transaction_cost=0.001
     )
-    
+
     # Check environment
     assert env is not None
     assert env.observation_space is not None
     assert env.action_space is not None
-    
+
     # Reset environment
-    obs = env.reset()
+    obs, info = env.reset()
     assert obs is not None
-    
+    assert isinstance(info, dict)
+
     # Take a step
     action = env.action_space.sample()
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
     assert obs is not None
     assert isinstance(reward, (int, float))
-    assert isinstance(done, bool)
+    assert isinstance(terminated, bool)
+    assert isinstance(truncated, bool)
     assert isinstance(info, dict)
 
 def test_rl_training_smoke():
@@ -61,13 +64,13 @@ def test_rl_training_smoke():
     data_path = "data/features/batch/technical_with_timeidx.parquet"
     if not os.path.exists(data_path):
         pytest.skip(f"Data file not found: {data_path}")
-    
+
     # Check if Ray is available
     try:
         import ray
     except ImportError:
         pytest.skip("Ray is not available")
-    
+
     # Run one training iteration with tiny data & iterations
     cmd = [
         "python", "src/rl/train_rl.py",
@@ -82,14 +85,14 @@ def test_rl_training_smoke():
         "--rollout-length", "10",
         "--debug"
     ]
-    
+
     # Run command
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        
+
         # Check result
         assert result.returncode == 0, f"Command failed with error: {result.stderr}"
-        
+
         # Check output
         assert "Running backtest with initial capital" in result.stdout or "Running backtest with initial capital" in result.stderr
     except subprocess.TimeoutExpired:
@@ -103,34 +106,34 @@ def test_rl_evaluation_smoke():
     data_path = "data/features/batch/technical_with_timeidx.parquet"
     if not os.path.exists(data_path):
         pytest.skip(f"Data file not found: {data_path}")
-    
+
     # Check if Ray is available
     try:
         import ray
     except ImportError:
         pytest.skip("Ray is not available")
-    
+
     # Check if checkpoint exists
     checkpoint_path = "logs/rl/test_ppo"
     if not os.path.exists(checkpoint_path):
         pytest.skip(f"Checkpoint not found: {checkpoint_path}")
-    
+
     # Find the latest checkpoint
     checkpoints = []
     for root, dirs, files in os.walk(checkpoint_path):
         for file in files:
             if file.startswith("checkpoint-"):
                 checkpoints.append(os.path.join(root, file))
-    
+
     if not checkpoints:
         pytest.skip("No checkpoints found")
-    
+
     # Sort checkpoints by modification time
     checkpoints.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-    
+
     # Get the latest checkpoint
     checkpoint = checkpoints[0]
-    
+
     # Run evaluation
     cmd = [
         "python", "src/rl/evaluate_rl.py",
@@ -140,14 +143,14 @@ def test_rl_evaluation_smoke():
         "--algorithm", "ppo",
         "--num-episodes", "1"
     ]
-    
+
     # Run command
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        
+
         # Check result
         assert result.returncode == 0, f"Command failed with error: {result.stderr}"
-        
+
         # Check output
         assert "Evaluating episode" in result.stdout or "Evaluating episode" in result.stderr
     except subprocess.TimeoutExpired:

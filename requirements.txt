@@ -61,6 +61,6 @@ numba==0.58.1
 evidently==0.4.9
 
 # Reinforcement learning
-gym==0.26.3
+gymnasium==0.29.1
 ray[rllib]==2.9.0
 tensorboard==2.15.1

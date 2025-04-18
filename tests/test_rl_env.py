@@ -6,6 +6,7 @@ import sys
 import pytest
 import numpy as np
 import pandas as pd
+import gymnasium as gym
 
 # Add src directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,7 +65,7 @@ def test_env_reset_and_step(sample_df):
     )
 
     # Reset environment
-    obs = env.reset()
+    obs, info = env.reset()
 
     # Check initial state
     assert env.cash == env.initial_capital
@@ -77,29 +78,29 @@ def test_env_reset_and_step(sample_df):
 
     # Test buy action for AAPL (action 1)
     action = 1  # Buy AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Check state after buy
     assert env.cash == 0
     assert env.positions['AAPL'] > 0
     assert env.positions['MSFT'] == 0
     assert env.current_step == 1
-    assert not done
+    assert not terminated
 
     # Test sell action for AAPL (action 2)
     action = 2  # Sell AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Check state after sell
     assert env.cash > 0
     assert env.positions['AAPL'] == 0
     assert env.positions['MSFT'] == 0
     assert env.current_step == 2
-    assert not done
+    assert not terminated
 
     # Test hold action (action 0)
     action = 0  # Hold
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Check state after hold
     assert env.cash > 0
@@ -123,7 +124,7 @@ def test_env_portfolio_value(sample_df):
     )
 
     # Reset environment
-    env.reset()
+    _, _ = env.reset()
 
     # Initial portfolio value
     initial_value = env.cash + sum(env.positions[symbol] * sample_df[sample_df['symbol'] == symbol].iloc[0]['close'] for symbol in env.symbols)
@@ -131,7 +132,7 @@ def test_env_portfolio_value(sample_df):
 
     # Buy AAPL
     action = 1  # Buy AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Portfolio value after buy
     portfolio_value = info['portfolio_value']
@@ -140,7 +141,7 @@ def test_env_portfolio_value(sample_df):
 
     # Sell AAPL
     action = 2  # Sell AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Portfolio value after sell
     portfolio_value = info['portfolio_value']
@@ -162,18 +163,18 @@ def test_env_reward(sample_df):
     )
 
     # Reset environment
-    env.reset()
+    _, _ = env.reset()
 
     # Buy AAPL
     action = 1  # Buy AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Reward should be negative due to transaction cost
     assert reward < 0
 
     # Sell AAPL
     action = 2  # Sell AAPL
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Reward depends on price change and transaction cost
     # Could be positive or negative
@@ -191,7 +192,7 @@ def test_env_history(sample_df):
     )
 
     # Reset environment
-    env.reset()
+    _, _ = env.reset()
 
     # Take some actions
     actions = [1, 2, 0]  # Buy, sell, hold
@@ -224,7 +225,7 @@ def test_multi_asset_env(sample_df):
     )
 
     # Reset environment
-    obs = env.reset()
+    obs, info = env.reset()
 
     # Check observation space
     # The exact shape depends on implementation details
@@ -235,7 +236,7 @@ def test_multi_asset_env(sample_df):
 
     # Take an action
     action = np.array([0.5, 0.0])  # Allocate 50% to AAPL, 0% to MSFT
-    obs, reward, done, info = env.step(action)
+    obs, reward, terminated, truncated, info = env.step(action)
 
     # Check state after action
     # The exact behavior depends on implementation details
@@ -243,7 +244,7 @@ def test_multi_asset_env(sample_df):
     assert env.current_step == 1
     assert env.positions['AAPL'] >= 0  # May have bought AAPL
     assert env.positions['MSFT'] >= 0  # Should not have negative positions
-    assert not done
+    assert not terminated
 
 if __name__ == "__main__":
     # Run tests
