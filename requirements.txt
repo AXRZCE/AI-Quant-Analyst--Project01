@@ -16,9 +16,9 @@ requests==2.31.0
 streamlit==1.27.0
 
 # Spark and Delta Lake
-pyspark==3.5.0
+pyspark==3.4.1
 delta-spark==2.4.0
-pyarrow==14.0.1
+pyarrow==11.0.0
 
 # Feature store
 feast==0.29.0
@@ -50,12 +50,12 @@ pytorch-forecasting==1.0.0
 transformers==4.30.2
 
 # Uncertainty quantification
-numpyro==0.13.2
-jax==0.4.20
-jaxlib==0.4.20
-arviz==0.17.0
-pymc3==3.11.5
-numba==0.58.1
+numpyro==0.12.1
+jax==0.4.13
+jaxlib==0.4.13
+arviz==0.15.1
+pymc==5.7.2
+numba==0.57.1
 
 # Monitoring and drift detection
 evidently==0.4.9

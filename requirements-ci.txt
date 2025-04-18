@@ -1,24 +1,10 @@
 # Core data processing
 pandas>=2.0.0
 numpy>=1.24.0
-scikit-learn>=1.0.0
-xgboost>=1.7.0
-
-# Utilities
-joblib>=1.0.0
-requests>=2.25.0
-python-dotenv>=1.0.0
 
 # Testing
 pytest>=7.0.0
 flake8>=6.0.0
-
-# Model serving
-bentoml>=1.0.0
-
-# Monitoring
-prometheus-client>=0.10.0
-evidently>=0.4.0
 
 # Reinforcement Learning
 gymnasium>=0.28.0
