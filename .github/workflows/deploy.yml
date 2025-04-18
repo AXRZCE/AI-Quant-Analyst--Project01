@@ -2,7 +2,7 @@ name: Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -14,17 +14,32 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          # Install CI-specific dependencies
+          pip install -r requirements-ci.txt
+
+      - name: Lint code
+        run: |
+          # Run flake8 with relaxed settings
+          pip install flake8
+          flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
 
       - name: Run tests
         run: |
-          pytest tests/
+          pytest tests/ -v
 
   build-and-push:
     needs: test
@@ -35,22 +50,49 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements-ci.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install bentoml
+          # Install CI-specific dependencies
+          pip install -r requirements-ci.txt
+
+      - name: Check model file
+        run: |
+          # Check if model file exists
+          if [ ! -f "models/baseline_xgb.pkl" ]; then
+            echo "Error: Model file not found at models/baseline_xgb.pkl"
+            ls -la models/
+            exit 1
+          fi
+          echo "Model file found at models/baseline_xgb.pkl"
 
       - name: Save model to BentoML
         run: |
+          # Add error handling
+          set -e
+          echo "Saving model to BentoML..."
           python src/serving/save_model.py --model-path models/baseline_xgb.pkl --model-name baseline_xgb
+          echo "Model saved successfully."
 
       - name: Build BentoML service
         run: |
+          # Add error handling
+          set -e
+          echo "Building BentoML service..."
           cd src/serving
-          bentoml build
+          bentoml build --verbose
+          echo "BentoML service built successfully."
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -75,7 +117,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'latest'
+          version: "latest"
 
       - name: Set up kubeconfig
         run: |
