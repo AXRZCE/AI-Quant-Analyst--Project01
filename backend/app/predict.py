@@ -175,30 +175,10 @@ def run_prediction(symbol: str, days: int) -> PredictionResponse:
             except Exception as e:
                 logger.error(f"Error fetching data with extended timeframe: {e}")
 
-            # If still empty, as a last resort, generate synthetic data
+            # If still empty, raise an error
             if df.empty:
-                logger.error(f"All attempts to fetch real data for {symbol} failed, generating synthetic data")
-                logger.error("WARNING: Using synthetic data for predictions - results will not be accurate!")
-
-                # Generate synthetic data based on typical stock behavior
-                dates = pd.date_range(start=start_date, end=now, freq='1d')
-                base_price = 100.0
-                prices = [base_price]
-
-                # Generate somewhat realistic price movements
-                for i in range(1, len(dates)):
-                    daily_return = np.random.normal(0.0005, 0.015)  # Mean slightly positive, realistic volatility
-                    prices.append(prices[-1] * (1 + daily_return))
-
-                # Create dataframe with synthetic but somewhat realistic data
-                df = pd.DataFrame({
-                    'timestamp': dates,
-                    'close': prices,
-                    'open': [price * (1 - np.random.uniform(0, 0.01)) for price in prices],
-                    'high': [price * (1 + np.random.uniform(0, 0.02)) for price in prices],
-                    'low': [price * (1 - np.random.uniform(0, 0.02)) for price in prices],
-                    'volume': np.random.randint(100000, 10000000, len(dates))
-                }).set_index('timestamp')
+                logger.error(f"All attempts to fetch real data for {symbol} failed")
+                raise ValueError(f"Could not fetch market data for {symbol}. Please try another symbol or try again later.")
 
         # 2. Compute features
         df["ma_5"] = df["close"].rolling(5).mean()
@@ -227,52 +207,48 @@ def run_prediction(symbol: str, days: int) -> PredictionResponse:
                 except Exception as e:
                     logger.warning(f"Error fetching news from a source: {e}")
 
-            # Extract titles or use placeholder
+            # Extract titles
             if news:
                 texts = [n["title"] for n in news if "title" in n and n["title"]]
+                if not texts:
+                    logger.warning(f"No news titles found for {symbol}")
+                    raise ValueError(f"No news content available for {symbol}")
+
+                # Get sentiment analyzer
+                sentiment_analyzer = get_sentiment_analyzer()
+
+                # Analyze sentiment
+                sent = sentiment_analyzer.analyze(texts)
+
+                # Calculate average sentiment
+                if sent:
+                    avg = {k: sum(d.get(k, 0) for d in sent) / len(sent) for k in sent[0]}
+                    logger.info(f"Sentiment analysis for {symbol}: {avg}")
+                else:
+                    logger.warning(f"Sentiment analysis failed for {symbol}")
+                    raise ValueError(f"Sentiment analysis failed for {symbol}")
             else:
-                logger.warning(f"No news found for {symbol}, using generic text")
-                texts = [f"Latest market updates for {symbol}"]
-
-            # Get sentiment analyzer - prefer FinBERT but fall back to dummy if needed
-            sentiment_analyzer = get_sentiment_analyzer()
-
-            # Analyze sentiment
-            sent = sentiment_analyzer.analyze(texts)
-
-            # Calculate average sentiment
-            if sent:
-                avg = {k: sum(d.get(k, 0) for d in sent) / len(sent) for k in sent[0]}
-                logger.info(f"Sentiment analysis for {symbol}: {avg}")
-            else:
-                logger.warning(f"Sentiment analysis failed for {symbol}, using neutral sentiment")
-                avg = {"positive": 0.33, "neutral": 0.34, "negative": 0.33}
+                logger.warning(f"No news found for {symbol}")
+                raise ValueError(f"No news data available for {symbol}")
 
         except Exception as e:
             logger.error(f"Error in news/sentiment pipeline: {e}")
-            avg = {"positive": 0.33, "neutral": 0.34, "negative": 0.33}
+            raise ValueError(f"Failed to analyze news sentiment: {e}")
 
         # 4. Model inference
         # Check if we have enough data points
         if len(df) < 5 or df["ma_5"].isna().all() or df["rsi_14"].isna().all():
-            logger.warning(f"Not enough data points for {symbol}, generating synthetic features")
-            # Generate synthetic features
-            features = pd.DataFrame([{
-                "ma_5": df["close"].mean() if not df.empty else 100.0,
-                "rsi_14": 50.0,  # Neutral RSI
-                "sentiment_positive": avg["positive"],
-                "sentiment_neutral": avg["neutral"],
-                "sentiment_negative": avg["negative"]
-            }])
-        else:
-            # Use real features
-            features = pd.DataFrame([{
-                "ma_5": df["ma_5"].dropna().iloc[-1],
-                "rsi_14": df["rsi_14"].dropna().iloc[-1],
-                "sentiment_positive": avg["positive"],
-                "sentiment_neutral": avg["neutral"],
-                "sentiment_negative": avg["negative"]
-            }])
+            logger.warning(f"Not enough data points for {symbol}")
+            raise ValueError(f"Insufficient historical data for {symbol}. Need at least 5 days of data.")
+
+        # Use real features
+        features = pd.DataFrame([{
+            "ma_5": df["ma_5"].dropna().iloc[-1],
+            "rsi_14": df["rsi_14"].dropna().iloc[-1],
+            "sentiment_positive": avg["positive"],
+            "sentiment_neutral": avg["neutral"],
+            "sentiment_negative": avg["negative"]
+        }])
 
         model = load_model()
         pred = float(model.predict(features)[0])

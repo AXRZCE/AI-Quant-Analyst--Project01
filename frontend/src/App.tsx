@@ -63,9 +63,19 @@ const MainContent = () => {
         setData(result);
         setAdvancedData(null);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching prediction:", err);
-      setError("Failed to fetch prediction. Please try again.");
+
+      // Extract error message from the response if available
+      let errorMessage = "Failed to fetch prediction. Please try again.";
+
+      if (err.response && err.response.data && err.response.data.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
       setData(null);
       setAdvancedData(null);
     } finally {
@@ -104,6 +114,15 @@ const MainContent = () => {
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8" role="alert">
           <p className="font-bold">Error</p>
           <p>{error}</p>
+          <div className="mt-2">
+            <p className="text-sm">Please try:</p>
+            <ul className="list-disc list-inside text-sm ml-2">
+              <li>Using a different stock symbol</li>
+              <li>Reducing the number of days</li>
+              <li>Checking your internet connection</li>
+              <li>Trying again later</li>
+            </ul>
+          </div>
         </div>
       )}
 

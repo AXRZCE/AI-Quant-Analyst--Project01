@@ -266,16 +266,21 @@ if NEW_API_STRUCTURE:
         @app.post(f"{settings.api.PREFIX}/predict/advanced", response_model=AdvancedPredictionResponse)
         async def advanced_prediction(request: AdvancedPredictionRequest, api_key: str = Depends(get_api_key)):
             """Make an advanced prediction using ensemble models, TFT, and FinBERT."""
-            result = run_advanced_prediction(request.symbol, request.days)
-
-            # Check for error
-            if "error" in result:
+            try:
+                result = run_advanced_prediction(request.symbol, request.days)
+                return result
+            except ValueError as e:
+                # This indicates we couldn't get real data
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=str(e)
+                )
+            except Exception as e:
+                # Other errors
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=result["error"]
+                    detail=f"Prediction failed: {str(e)}"
                 )
-
-            return result
 
     # Cache endpoints
     @app.get(f"{settings.api.PREFIX}/cache/stats")
@@ -333,8 +338,18 @@ def predict(payload: PredictionRequest):
     """Run prediction for a given stock symbol"""
     try:
         return run_prediction(payload.symbol, payload.days)
+    except ValueError as e:
+        # This indicates we couldn't get real data
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Other errors
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prediction failed: {str(e)}"
+        )
 
 # Run the application
 if __name__ == "__main__":
