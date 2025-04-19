@@ -1,0 +1,66 @@
+filebeat.inputs:
+- type: container
+  paths:
+    - /var/lib/docker/containers/*/*.log
+  processors:
+    - add_docker_metadata:
+        host: "unix:///var/run/docker.sock"
+    - decode_json_fields:
+        fields: ["message"]
+        target: "json"
+        overwrite_keys: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*.log
+    - /var/log/messages
+    - /var/log/syslog
+  fields:
+    source: system_logs
+  fields_under_root: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/project01/*.log
+  fields:
+    source: application_logs
+  fields_under_root: true
+  json.keys_under_root: true
+  json.message_key: message
+  json.add_error_key: true
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  indices:
+    - index: "filebeat-docker-%{+yyyy.MM.dd}"
+      when.contains:
+        container.image.name: "project01"
+    - index: "filebeat-system-%{+yyyy.MM.dd}"
+      when.equals:
+        source: "system_logs"
+    - index: "filebeat-application-%{+yyyy.MM.dd}"
+      when.equals:
+        source: "application_logs"
+
+setup.kibana:
+  host: "kibana:5601"
+
+setup.dashboards.enabled: true
+setup.template.enabled: true
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644

@@ -1,6 +1,6 @@
 # Project01 UI
 
-This folder contains the React + FastAPI UI for your private AI Quant Analyst.
+This document describes the React + FastAPI UI for your private AI Quant Analyst.
 
 ## Prerequisites
 
@@ -13,18 +13,28 @@ This folder contains the React + FastAPI UI for your private AI Quant Analyst.
   ```
 - (Optional) Adjust ports or VITE_API_URL in `infra/docker-compose.yml`
 
-## Running Locally
+## Running Options
 
-### Windows
+### Docker-based Setup (Recommended)
+
+#### Windows
 
 ```bat
 run_ui.bat
 ```
 
-### Linux / macOS
+#### Linux / macOS
 
 ```bash
 ./run_ui.sh
+```
+
+### Local Development Setup
+
+For a simpler setup without Docker (Windows only):
+
+```bat
+run_ui_local.bat
 ```
 
 Once up:

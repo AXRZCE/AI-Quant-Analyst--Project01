@@ -1,6 +1,6 @@
 # Data Ingestion Components
 
-This directory contains the data ingestion components for the AI-Quant-Analyst project.
+This document describes the data ingestion components for the AI-Quant-Analyst project.
 
 ## Setup
 

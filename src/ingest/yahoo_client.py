@@ -11,14 +11,15 @@ import time
 import logging
 import pandas as pd
 import numpy as np
-import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Union, Tuple
+from typing import List, Dict, Any
 from pathlib import Path
-from functools import lru_cache
 
 import yfinance as yf
 from dotenv import load_dotenv
+from requests.exceptions import RequestException
+
+from src.ingest.base_client import BaseAPIClient
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -32,17 +33,27 @@ CACHE_DIR = Path(os.getenv('CACHE_DIR', 'data/cache/yahoo'))
 # Ensure cache directory exists
 os.makedirs(CACHE_DIR, exist_ok=True)
 
-class YahooFinanceClient:
+class YahooFinanceClient(BaseAPIClient):
     """Client for fetching data from Yahoo Finance."""
 
-    def __init__(self, use_cache: bool = True, cache_expiry: int = 24):
+    def __init__(self, use_cache: bool = True, cache_expiry: int = 24, max_retries: int = 3, backoff_factor: float = 0.5):
         """Initialize the Yahoo Finance client.
 
         Args:
             use_cache: Whether to use caching for API requests
             cache_expiry: Cache expiry time in hours
+            max_retries: Maximum number of retries for failed requests
+            backoff_factor: Backoff factor for retries
         """
         logger.info("Initializing Yahoo Finance client")
+
+        # Initialize the base client
+        super().__init__(
+            base_url="https://query2.finance.yahoo.com",  # Not actually used for yfinance
+            max_retries=max_retries,
+            backoff_factor=backoff_factor
+        )
+
         self.use_cache = use_cache
         self.cache_expiry = cache_expiry
 
@@ -82,6 +93,7 @@ class YahooFinanceClient:
 
         return file_age < max_age
 
+    @BaseAPIClient.with_retry(max_retries=3, backoff_factor=0.5, exceptions=(Exception,))
     def fetch_ticks(
         self,
         symbol: str,
@@ -103,13 +115,22 @@ class YahooFinanceClient:
         """
         logger.info(f"Fetching {interval} data for {symbol} from {start} to {end}")
 
+        # Validate interval
+        valid_intervals = ['1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo']
+        if interval not in valid_intervals:
+            raise ValueError(f"Invalid interval: {interval}. Must be one of: {', '.join(valid_intervals)}")
+
         # Check cache first if enabled
         if self.use_cache:
             cache_path = self._get_cache_path(symbol, "ticks", start, end, interval)
             if self._is_cache_valid(cache_path):
                 logger.info(f"Loading {symbol} data from cache: {cache_path}")
                 try:
-                    return pd.read_parquet(cache_path)
+                    df = pd.read_parquet(cache_path)
+                    if not df.empty:
+                        logger.info(f"Loaded {len(df)} records for {symbol} from cache")
+                        return df
+                    logger.warning(f"Cache file exists but is empty for {symbol}. Will fetch fresh data.")
                 except Exception as e:
                     logger.warning(f"Error reading from cache: {e}. Will fetch fresh data.")
 
@@ -121,6 +142,11 @@ class YahooFinanceClient:
                 end=end.strftime('%Y-%m-%d'),
                 interval=interval
             )
+
+            # Check if data is empty
+            if df.empty:
+                logger.warning(f"No data returned from Yahoo Finance for {symbol}")
+                return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
             # Reset index to make Date a column
             df = df.reset_index()
@@ -139,6 +165,9 @@ class YahooFinanceClient:
             if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
 
+            # Validate data
+            self._validate_tick_data(df, symbol)
+
             logger.info(f"Fetched {len(df)} records for {symbol}")
 
             # Save to cache if enabled
@@ -153,10 +182,61 @@ class YahooFinanceClient:
             return df
 
         except Exception as e:
-            logger.error(f"Error fetching data from Yahoo Finance: {str(e)}")
+            logger.error(f"Error fetching data from Yahoo Finance for {symbol}: {str(e)}")
             # Return empty DataFrame with correct columns
             return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
+    def _validate_tick_data(self, df: pd.DataFrame, symbol: str) -> None:
+        """
+        Validate tick data for quality and completeness.
+
+        Args:
+            df: DataFrame with tick data
+            symbol: Stock ticker symbol
+
+        Raises:
+            ValueError: If data validation fails
+        """
+        # Check for required columns
+        required_columns = ['timestamp', 'open', 'high', 'low', 'close']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            logger.warning(f"Missing required columns for {symbol}: {missing_columns}")
+            # Add missing columns with NaN values
+            for col in missing_columns:
+                df[col] = np.nan
+
+        # Check for NaN values in critical columns
+        for col in ['open', 'high', 'low', 'close']:
+            if col in df.columns and df[col].isna().any():
+                nan_count = df[col].isna().sum()
+                logger.warning(f"Found {nan_count} NaN values in {col} column for {symbol}")
+
+        # Check for duplicate timestamps
+        if df['timestamp'].duplicated().any():
+            dup_count = df['timestamp'].duplicated().sum()
+            logger.warning(f"Found {dup_count} duplicate timestamps for {symbol}")
+            # Remove duplicates
+            df.drop_duplicates(subset=['timestamp'], keep='first', inplace=True)
+
+        # Check for out-of-order timestamps
+        if not df['timestamp'].equals(df['timestamp'].sort_values()):
+            logger.warning(f"Timestamps are not in order for {symbol}")
+            # Sort by timestamp
+            df.sort_values('timestamp', inplace=True)
+
+        # Check for price anomalies (e.g., negative prices)
+        for col in ['open', 'high', 'low', 'close']:
+            if col in df.columns and (df[col] < 0).any():
+                neg_count = (df[col] < 0).sum()
+                logger.warning(f"Found {neg_count} negative values in {col} column for {symbol}")
+
+        # Check for high-low inconsistency
+        if 'high' in df.columns and 'low' in df.columns and (df['high'] < df['low']).any():
+            inconsistent_count = (df['high'] < df['low']).sum()
+            logger.warning(f"Found {inconsistent_count} rows where high < low for {symbol}")
+
+    @BaseAPIClient.with_retry(max_retries=3, backoff_factor=0.5, exceptions=(Exception,))
     def fetch_fundamentals(self, symbol: str) -> Dict:
         """
         Fetch fundamental data for a given symbol.

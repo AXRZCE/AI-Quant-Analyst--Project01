@@ -1,7 +1,5 @@
 # AI-Quant-Analyst--Project01
 
-# Project01
-
 ![CI](https://github.com/AXRZCE/AI-Quant-Analyst--Project01/actions/workflows/ci.yml/badge.svg)
 
 ## Overview
@@ -65,7 +63,7 @@ Project01/
 
 ### 1. Data Ingestion
 
-See [README_DATA_INGESTION.md](README_DATA_INGESTION.md) for details on the data ingestion components.
+See [docs/data_ingestion.md](docs/data_ingestion.md) for details on the data ingestion components.
 
 ### 2. Feature Engineering
 
@@ -82,11 +80,13 @@ See [README_DATA_INGESTION.md](README_DATA_INGESTION.md) for details on the data
 
 ### 4. UI
 
-See [README_UI.md](README_UI.md) for details on the UI components.
+See [docs/ui.md](docs/ui.md) for details on the UI components.
 
 ## Usage
 
-To run the UI:
+### Running the UI
+
+#### Docker-based Setup (Recommended)
 
 ```bash
 # On Windows
@@ -96,10 +96,16 @@ run_ui.bat
 ./run_ui.sh
 ```
 
+#### Local Development Setup (Windows)
+
+```bash
+run_ui_local.bat
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-*Coming soon*
+_Coming soon_

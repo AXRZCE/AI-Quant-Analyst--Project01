@@ -3,11 +3,12 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY app/requirements.txt .
+COPY backend/app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY app/ /app/
+COPY backend/app/ /app/
+COPY src/ /src/
 
 # Set environment variables
 ENV PYTHONPATH=/

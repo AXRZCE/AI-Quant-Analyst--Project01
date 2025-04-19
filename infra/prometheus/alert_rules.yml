@@ -1,0 +1,87 @@
+groups:
+  - name: data_quality_alerts
+    rules:
+      - alert: DatasetDriftDetected
+        expr: dataset_drift > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dataset drift detected"
+          description: "Dataset drift has been detected in the data monitoring job."
+          
+      - alert: DataQualityTestsFailed
+        expr: sum(test_status) < count(test_status)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Data quality tests failed"
+          description: "{{ $value }} data quality tests have failed."
+          
+      - alert: HighMissingValues
+        expr: missing_values_percent > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High percentage of missing values"
+          description: "{{ $value }}% of values are missing in the dataset."
+          
+  - name: model_performance_alerts
+    rules:
+      - alert: ModelPerformanceDegraded
+        expr: model_rmse > historical_model_rmse * 1.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model performance degraded"
+          description: "Model RMSE ({{ $value }}) is 20% higher than historical RMSE."
+          
+      - alert: ModelLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(request_latency_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model inference latency is high"
+          description: "95th percentile of model inference latency is {{ $value }}s, which is above the threshold of 0.5s."
+          
+      - alert: ModelErrorRateHigh
+        expr: sum(rate(request_errors_total[5m])) / sum(rate(request_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model error rate is high"
+          description: "Error rate is {{ $value | humanizePercentage }}, which is above the threshold of 5%."
+          
+  - name: system_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: avg(rate(container_cpu_usage_seconds_total{container_name!=""}[5m])) by (container_name) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "Container {{ $labels.container_name }} has CPU usage of {{ $value | humanizePercentage }}."
+          
+      - alert: HighMemoryUsage
+        expr: avg(container_memory_usage_bytes{container_name!=""}) by (container_name) / avg(container_spec_memory_limit_bytes{container_name!=""}) by (container_name) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Container {{ $labels.container_name }} has memory usage of {{ $value | humanizePercentage }}."
+          
+      - alert: PodCrashLooping
+        expr: increase(kube_pod_container_status_restarts_total[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod is crash looping"
+          description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour."

@@ -1,5 +1,5 @@
 @echo off
-echo ===== Starting Project01 Quant Analyst =====
+echo ===== Starting Project01 Quant Analyst (Local Mode) =====
 
 echo.
 echo 1. Starting Backend API...
